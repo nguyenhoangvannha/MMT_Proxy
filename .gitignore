@@ -25,3 +25,5 @@ hs_err_pid*
 cached/
 blacklist.conf
 CACHED_FILE
+/dist/
+/build/

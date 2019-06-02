@@ -59,7 +59,7 @@ public class Proxy implements Runnable {
                 runningThreads.add(clientThread);
                 clientThread.start();
                 System.out.println("New socket client started");
-            } catch (Exception ex) {
+            } catch (IOException ex) {
                 System.out.println("Error while accepting and creating client thread:" + ex.getMessage());
             }
         }
@@ -102,9 +102,21 @@ public class Proxy implements Runnable {
             running = true;
             System.out.println("Proxy server started at " + port);
         } catch (IOException ex) {
-            System.out.println("Error while creating socket: " + ex.getMessage());
+            System.out.println("Error while creating socket with port " + port + ex.getMessage());
+            for (int i = 1024; i < 65535; i++) {
+                this.port = i;
+                try {
+                    serverSocket = new ServerSocket(port);
+                    running = true;
+                    System.out.println("Proxy server started at " + port);
+                    break;
+                } catch (IOException e) {
+                    System.out.println("Error while creating socket with port " + port + ex.getMessage());
+                }
+            }
         }
     }
+    
 
     private void closeServer() {
         System.out.println("Closing server");
