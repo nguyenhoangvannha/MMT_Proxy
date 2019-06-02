@@ -62,20 +62,21 @@ public class RequestHandler implements Runnable {
         if (method.equalsIgnoreCase("CONNECT")) {
             System.out.println("Drop https reqest: " + destUrl);
         } else if (method.equalsIgnoreCase("POST")) {
-            System.out.println("DROP POST METHOD");
+            sendNonCachedToClient(request);
         } else if (method.equalsIgnoreCase("GET")) {
-            doGetMethod(destUrl);
+            doGetMethod(request);
         }
     }
 
-    private void doGetMethod(String uri) {
+    private void doGetMethod(HTTPRequest request) {
+        String uri = request.getUri();
         File cachedFile;
         if ((cachedFile = Proxy.getCachedFile(uri)) != null) {
             System.out.println("Sending cached file: " + uri);
             sendCachedToClient(cachedFile);
         } else {
             System.out.println("Requesting : " + uri + "\n");
-            sendNonCachedToClient(uri);
+            sendNonCachedToClient(request);
         }
     }
 
@@ -114,8 +115,6 @@ public class RequestHandler implements Runnable {
         }
     }
 
-    
-
     private void sendImageToClient(BufferedImage image, String fileExt) {
         try {
             Utils.sendOkMessageToClient(proxyToClientBw);
@@ -125,7 +124,8 @@ public class RequestHandler implements Runnable {
         }
     }
 
-    private void sendNonCachedToClient(String destUrl) {
+    private void sendNonCachedToClient(HTTPRequest request) {
+        String destUrl = request.getUri();
         try {
             String cachedFileName = Utils.createCachedFileNameFromUrl(destUrl);
             String fileExt = Utils.getFileExt(destUrl);
@@ -154,8 +154,15 @@ public class RequestHandler implements Runnable {
                     return;
                 }
             } else {
-
-                BufferedReader proxyToServerBR = Utils.sendGetToRemoteServer(destUrl);
+                BufferedReader proxyToServerBR = null;
+                if (request.getMethod().equalsIgnoreCase("GET")) {
+                    proxyToServerBR = Utils.sendGetToRemoteServer(destUrl);
+                } else {
+                    proxyToServerBR = Utils.sendPostToRemoteServer(request);
+                }
+                if (proxyToServerBR == null ) {
+                    return;
+                }
                 Utils.sendOkMessageToClient(proxyToClientBw);
                 String line = null;
                 while ((line = proxyToServerBR.readLine()) != null) {

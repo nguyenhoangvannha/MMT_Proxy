@@ -78,7 +78,7 @@ public class Proxy implements Runnable {
                 fileInputStream.close();
                 objectInputStream.close();
             }
-        } catch (Exception ex) {
+        } catch (IOException | ClassNotFoundException ex) {
             System.out.println("Error while loading cached files: " + ex.getMessage());
         }
     }
@@ -91,7 +91,7 @@ public class Proxy implements Runnable {
             while ((line = br.readLine()) != null) {
                 blackList.add(line);
             }
-        } catch (Exception ex) {
+        } catch (IOException ex) {
             System.out.println("Error while loading black list: " + ex.getMessage());
         }
     }
@@ -101,7 +101,7 @@ public class Proxy implements Runnable {
             serverSocket = new ServerSocket(port);
             running = true;
             System.out.println("Proxy server started at " + port);
-        } catch (Exception ex) {
+        } catch (IOException ex) {
             System.out.println("Error while creating socket: " + ex.getMessage());
         }
     }

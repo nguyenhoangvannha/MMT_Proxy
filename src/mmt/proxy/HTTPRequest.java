@@ -6,8 +6,10 @@
 package mmt.proxy;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
+import java.nio.CharBuffer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -24,6 +26,8 @@ public class HTTPRequest {
     String accept;
     String contentType;
     String acceptLanguage;
+    String protocol;
+    String payload;
 
     public String getMethod() {
         return method;
@@ -80,17 +84,42 @@ public class HTTPRequest {
     public void setAcceptLanguage(String acceptLanguage) {
         this.acceptLanguage = acceptLanguage;
     }
-    
+
+    public String getProtocol() {
+        return protocol;
+    }
+
+    public void setProtocol(String protocol) {
+        this.protocol = protocol;
+    }
+
+    public String getPayload() {
+        return payload;
+    }
+
+    public void setPayload(String payload) {
+        this.payload = payload;
+    }
 
     public HTTPRequest(Socket clientSocket) {
         try {
             BufferedReader clientToProxyBr = null;
             clientToProxyBr = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
             String inputLine;
+            
             while (!(inputLine = clientToProxyBr.readLine()).equals("")) {
                 processLine(inputLine);
             }
-        } catch (Exception ex) {
+            if (contentLength > 0) {
+                StringBuilder payload = new StringBuilder("\n");
+                while (clientToProxyBr.ready()) {
+                    char c = (char) clientToProxyBr.read();
+                    payload.append(c);
+                }
+                setPayload(payload.toString());
+            }
+            
+        } catch (IOException ex) {
             Logger.getLogger(HTTPRequest.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
@@ -98,9 +127,9 @@ public class HTTPRequest {
     private void processLine(String line) {
         String prop = line.substring(0, line.indexOf(" "));
         if (!prop.contains(":")) {
-            String uri = line.substring(4, line.lastIndexOf(" "));
-            setUri(uri);
             setMethod(prop);
+            setUri(line.substring(4, line.lastIndexOf(" ")));
+            setProtocol(line.substring(line.lastIndexOf(" ") + 1));
         } else {
             prop = prop.replace(":", "");
             switch (prop) {
@@ -112,9 +141,9 @@ public class HTTPRequest {
                     break;
                 case "Content-Length":
                     String strLength = line.substring(line.indexOf(" ") + 1);
-                    try{
+                    try {
                         setContentLength(Integer.parseInt(strLength));
-                    } catch(Exception ex){
+                    } catch (Exception ex) {
                         setContentLength(0);
                     }
                     break;
@@ -131,7 +160,7 @@ public class HTTPRequest {
 
     @Override
     public String toString() {
-        return "HTTPRequest{" + "method=" + method + ", uri=" + uri + ", host=" + host + ", contentLength=" + contentLength + ", accept=" + accept + ", contentType=" + contentType + ", acceptLanguage=" + acceptLanguage + '}';
+        return "HTTPRequest{" + "method=" + method + ", uri=" + uri + ", contentLength=" + contentLength + ", contentType=" + contentType + ", protocol=" + protocol + '}';
     }
 
 }

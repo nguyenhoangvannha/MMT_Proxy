@@ -10,8 +10,11 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.HashSet;
 
 /**
@@ -19,14 +22,15 @@ import java.util.HashSet;
  * @author nguye
  */
 public class Utils {
+
     private static HashSet<String> imageTypes;
     private static HashSet<String> unsupportCharracters;
-    
+
     public Utils() {
-        
+
     }
-    
-    public static void init(){
+
+    public static void init() {
         imageTypes = new HashSet<>();
         unsupportCharracters = new HashSet<>();
         imageTypes.add("png");
@@ -43,11 +47,11 @@ public class Utils {
         unsupportCharracters.add("<");
         unsupportCharracters.add("|");
     }
-    
+
     public static boolean isImage(String ext) {
         return imageTypes.contains(ext);
     }
-    
+
     public static String createCachedFileNameFromUrl(String url) {
         url = url.replace("http://", "");
         if (url.length() > 55) {
@@ -58,6 +62,7 @@ public class Utils {
         }
         return url;
     }
+
     public static String getFileExt(File file) {
         return file.getName().substring(file.getName().lastIndexOf(".") + 1);
     }
@@ -69,7 +74,7 @@ public class Utils {
     public static String getFileName(File file) {
         return file.getName().substring(0, file.getName().lastIndexOf("."));
     }
-    
+
     public static BufferedReader sendGetToRemoteServer(String destUrl) {
         URL remoteURL;
         try {
@@ -86,7 +91,30 @@ public class Utils {
         }
         return null;
     }
-    
+
+    public static BufferedReader sendPostToRemoteServer(HTTPRequest request) {
+        URL remoteURL;
+        try {
+            remoteURL = new URL(request.getUri());
+            HttpURLConnection proxyToServerCon = (HttpURLConnection) remoteURL.openConnection();
+            proxyToServerCon.setRequestProperty("Content-Type", request.getContentType());
+            proxyToServerCon.setRequestProperty("Content-Length", String.valueOf(request.getContentLength()));
+            proxyToServerCon.setRequestProperty("Connection", "keep-alive");
+            proxyToServerCon.setUseCaches(false);
+            proxyToServerCon.setDoOutput(true);
+            proxyToServerCon.setRequestMethod("POST");
+            proxyToServerCon.connect();
+            OutputStream os = proxyToServerCon.getOutputStream();
+            os.write(request.getPayload().getBytes(Charset.forName("UTF-8")));
+            os.close();
+            BufferedReader proxyToServerBR = new BufferedReader(new InputStreamReader(proxyToServerCon.getInputStream()));
+            return proxyToServerBR;
+        } catch (Exception ex) {
+            System.out.println("GetFileStreamFromServer error : " + ex.getMessage());
+        }
+        return null;
+    }
+
     public static void sendNotFoundMessageToClient(BufferedWriter proxyToClientBw) {
         try {
             String error = "HTTP/1.0 404 NOT FOUND\n"
@@ -98,7 +126,7 @@ public class Utils {
             System.out.println("Send not found error: " + ex.getMessage());
         }
     }
-    
+
     public static void sendOkMessageToClient(BufferedWriter proxyToClientBw) {
         try {
             String response = "HTTP/1.0 200 OK\n"
@@ -110,7 +138,7 @@ public class Utils {
             System.out.println("SendOkMessageToClient error: " + ex.getMessage());
         }
     }
-    
+
     public static void sendBlockedResponse(BufferedWriter proxyToClientBw) {
         try {
             String line = "HTTP/1.0 403 Access Forbidden \n"
