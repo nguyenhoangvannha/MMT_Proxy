@@ -17,6 +17,7 @@ public class MMTProxy {
      */
     public static void main(String[] args) {
         // TODO code application logic here
+        Utils.init();
         Proxy proxy = new Proxy(PORT);
         proxy.listen();
     }

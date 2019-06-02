@@ -14,10 +14,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.net.HttpURLConnection;
 import java.net.Socket;
 import java.net.URL;
-import java.util.HashSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.imageio.ImageIO;
@@ -29,17 +27,14 @@ import javax.imageio.ImageIO;
 public class RequestHandler implements Runnable {
 
     private Socket clientSocket;
-    BufferedReader clientToProxyBr;
+    //BufferedReader clientToProxyBr;
     BufferedWriter proxyToClientBw;
-    private HashSet<String> imageTypes;
-    private HashSet<Character> unsupportCharracters;
 
     public RequestHandler(Socket clientSocket) {
         this.clientSocket = clientSocket;
-        initConstantList();
         try {
-            this.clientSocket.setSoTimeout(2000);
-            clientToProxyBr = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            this.clientSocket.setSoTimeout(4000);
+            //clientToProxyBr = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
             proxyToClientBw = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
         } catch (IOException ex) {
             System.out.println("Cannot get data stream between client and server: " + ex.getMessage());
@@ -48,78 +43,66 @@ public class RequestHandler implements Runnable {
 
     @Override
     public void run() {
-        String requestString = "";
-        try {
-            requestString = clientToProxyBr.readLine();
-            System.out.println("==================================");
-            System.out.println("REQEST: " + requestString);
-        } catch (Exception ex) {
-            System.out.println("Error reading request from client: " + ex.getMessage());
+        HTTPRequest request = new HTTPRequest(clientSocket);
+        if (request.getMethod() == null || request.getMethod().isEmpty()) {
+            System.out.println("Request error");
             return;
+        } else {
+            System.out.println(request.toString());
         }
-        String[] requestDetails = requestString.split(" ");
-        String method = requestDetails[0];
-        String destUrl = requestDetails[1];
+        String method = request.getMethod();
+        String destUrl = request.getUri();
 
-        if (Proxy.isBlockedSite(destUrl)) {
+        if (Proxy.isBlockedSite(request.getHost())) {
             System.out.println("Blocked request: " + destUrl);
-            sendBlockedResponse();
+            Utils.sendBlockedResponse(proxyToClientBw);
             return;
         }
 
         if (method.equalsIgnoreCase("CONNECT")) {
             System.out.println("Drop https reqest: " + destUrl);
-        } else {
-            File cachedFile;
-            if ((cachedFile = Proxy.getCachedFile(destUrl)) != null) {
-                System.out.println("Sending cached file: " + destUrl);
-                sendCachedToClient(cachedFile);
-            } else {
-                System.out.println("Requesting : " + destUrl + "\n");
-                sendNonCachedToClient(destUrl);
-            }
+        } else if (method.equalsIgnoreCase("POST")) {
+            System.out.println("DROP POST METHOD");
+        } else if (method.equalsIgnoreCase("GET")) {
+            doGetMethod(destUrl);
         }
     }
 
-    private void sendBlockedResponse() {
-        try {
-            String line = "HTTP/1.0 403 Access Forbidden \n"
-                    + "User-Agent: ProxyServer/1.0\n"
-                    + "\r\n";
-            proxyToClientBw.write(line);
-            proxyToClientBw.flush();
-            proxyToClientBw.close();
-        } catch (Exception ex) {
-            System.out.println("Error sending blocked site: " + ex.getMessage());
+    private void doGetMethod(String uri) {
+        File cachedFile;
+        if ((cachedFile = Proxy.getCachedFile(uri)) != null) {
+            System.out.println("Sending cached file: " + uri);
+            sendCachedToClient(cachedFile);
+        } else {
+            System.out.println("Requesting : " + uri + "\n");
+            sendNonCachedToClient(uri);
         }
     }
 
     private void sendCachedToClient(File cachedFile) {
         try {
-            String fileExt = getFileExt(cachedFile);
-            if (isImage(fileExt)) {
+            String fileExt = Utils.getFileExt(cachedFile);
+            if (Utils.isImage(fileExt)) {
                 BufferedImage image = ImageIO.read(cachedFile);
                 if (image == null) {
-                    sendNotFoundMessageToClient(cachedFile.getName());
+                    Utils.sendNotFoundMessageToClient(proxyToClientBw);
                 } else {
                     sendImageToClient(image, fileExt);
                 }
             } else {
                 BufferedReader cachedFileBR = new BufferedReader(new InputStreamReader(new FileInputStream(cachedFile)));
-                sendOkMessageToClient();
+                Utils.sendOkMessageToClient(proxyToClientBw);
                 String line = "";
                 while ((line = cachedFileBR.readLine()) != null) {
                     proxyToClientBw.write(line);
                 }
                 proxyToClientBw.flush();
-                if (cachedFileBR != null) {
-                    cachedFileBR.close();
-                }
+                cachedFileBR.close();
             }
             if (proxyToClientBw != null) {
                 proxyToClientBw.close();
             }
-        } catch (Exception ex) {
+        } catch (IOException ex) {
             System.out.println("Send cached file error: " + ex.getMessage());
             if (proxyToClientBw != null) {
                 try {
@@ -131,44 +114,21 @@ public class RequestHandler implements Runnable {
         }
     }
 
-    private void sendOkMessageToClient() {
-        try {
-            String response = "HTTP/1.0 200 OK\n"
-                    + "Proxy-agent: ProxyServer/1.0\n"
-                    + "\r\n";
-            proxyToClientBw.write(response);
-            proxyToClientBw.flush();
-        } catch (IOException ex) {
-            System.out.println("SendOkMessageToClient error: " + ex.getMessage());
-        }
-    }
+    
 
     private void sendImageToClient(BufferedImage image, String fileExt) {
         try {
-            sendOkMessageToClient();
+            Utils.sendOkMessageToClient(proxyToClientBw);
             ImageIO.write(image, fileExt, clientSocket.getOutputStream());
         } catch (Exception ex) {
             System.out.println("Send image error: " + ex.getMessage());
         }
     }
 
-    private void sendNotFoundMessageToClient(String destUrl) {
-        try {
-            System.out.println("File not found: " + destUrl);
-            String error = "HTTP/1.0 404 NOT FOUND\n"
-                    + "Proxy-agent: ProxyServer/1.0\n"
-                    + "\r\n";
-            proxyToClientBw.write(error);
-            proxyToClientBw.flush();
-        } catch (Exception ex) {
-            System.out.println("Send not found error: " + ex.getMessage());
-        }
-    }
-
     private void sendNonCachedToClient(String destUrl) {
         try {
-            String cachedFileName = createCachedFileNameFromUrl(destUrl);
-            String fileExt = getFileExt(destUrl);
+            String cachedFileName = Utils.createCachedFileNameFromUrl(destUrl);
+            String fileExt = Utils.getFileExt(destUrl);
             boolean caching = true;
             File cacheFile = null;
             BufferedWriter cacheFileBW = null;
@@ -183,20 +143,20 @@ public class RequestHandler implements Runnable {
                 caching = false;
             }
 
-            if (isImage(fileExt)) {
+            if (Utils.isImage(fileExt)) {
                 URL remoteURL = new URL(destUrl);
                 BufferedImage image = ImageIO.read(remoteURL);
                 if (image != null) {
                     ImageIO.write(image, fileExt, cacheFile);
                     sendImageToClient(image, fileExt);
                 } else {
-                    sendNotFoundMessageToClient(destUrl);
+                    Utils.sendNotFoundMessageToClient(proxyToClientBw);
                     return;
                 }
             } else {
 
-                BufferedReader proxyToServerBR = getResultStreamFromServer(destUrl);
-                sendOkMessageToClient();
+                BufferedReader proxyToServerBR = Utils.sendGetToRemoteServer(destUrl);
+                Utils.sendOkMessageToClient(proxyToClientBw);
                 String line = null;
                 while ((line = proxyToServerBR.readLine()) != null) {
                     proxyToClientBw.write(line);
@@ -236,67 +196,5 @@ public class RequestHandler implements Runnable {
                 }
             }
         }
-    }
-
-    private BufferedReader getResultStreamFromServer(String destUrl) {
-        URL remoteURL;
-        try {
-            remoteURL = new URL(destUrl);
-            HttpURLConnection proxyToServerCon = (HttpURLConnection) remoteURL.openConnection();
-            proxyToServerCon.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-            proxyToServerCon.setRequestProperty("Content-Language", "en-US");
-            proxyToServerCon.setUseCaches(false);
-            proxyToServerCon.setDoOutput(true);
-            BufferedReader proxyToServerBR = new BufferedReader(new InputStreamReader(proxyToServerCon.getInputStream()));
-            return proxyToServerBR;
-        } catch (Exception ex) {
-            System.out.println("GetFileStreamFromServer error : " + ex.getMessage());
-        }
-        return null;
-    }
-
-    private String getFileExt(File file) {
-        return file.getName().substring(file.getName().lastIndexOf(".") + 1);
-    }
-
-    private String getFileExt(String fileName) {
-        return fileName.substring(fileName.lastIndexOf(".") + 1);
-    }
-
-    private String createCachedFileNameFromUrl(String url) {
-        url = url.replace("http://", "");
-        if (url.length() > 55) {
-            url = url.substring(0, 15) + "_" + url.substring(url.length() - 35);
-        }
-        for (char unsupportChar : unsupportCharracters) {
-            url = url.replace(unsupportChar + "", "");
-        }
-        return url;
-    }
-
-    private String getFileName(File file) {
-        return file.getName().substring(0, file.getName().lastIndexOf("."));
-    }
-
-    private boolean isImage(String ext) {
-        return imageTypes.contains(ext);
-    }
-
-    private void initConstantList() {
-        imageTypes = new HashSet<>();
-        unsupportCharracters = new HashSet<>();
-        imageTypes.add("png");
-        imageTypes.add("jpg");
-        imageTypes.add("jpeg");
-        imageTypes.add("gif");
-        unsupportCharracters.add('\\');
-        unsupportCharracters.add('/');
-        unsupportCharracters.add(':');
-        unsupportCharracters.add('*');
-        unsupportCharracters.add('?');
-        unsupportCharracters.add('"');
-        unsupportCharracters.add('>');
-        unsupportCharracters.add('<');
-        unsupportCharracters.add('|');
     }
 }

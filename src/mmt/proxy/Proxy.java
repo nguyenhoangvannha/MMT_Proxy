@@ -160,13 +160,8 @@ public class Proxy implements Runnable {
         }
     }
 
-    public static boolean isBlockedSite(String url) {
-        for (String site : blackList) {
-            if (url.contains(site)) {
-                return true;
-            }
-        }
-        return false;
+    public static boolean isBlockedSite(String host) {
+        return blackList.contains(host);
     }
 
     public static File getCachedFile(String url) {
