@@ -5,6 +5,7 @@
  */
 package mmt.proxy;
 
+import mmt.proxy.model.HTTPRequest;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -53,9 +54,9 @@ public class RequestHandler implements Runnable {
         String method = request.getMethod();
         String destUrl = request.getUri();
 
-        if (Proxy.isBlockedSite(request.getHost())) {
+        if (FileUtils.isBlockedSite(request.getHost())) {
             System.out.println("Blocked request: " + destUrl);
-            Utils.sendBlockedResponse(proxyToClientBw);
+            NetUtils.sendBlockedResponse(proxyToClientBw);
             return;
         }
 
@@ -71,7 +72,7 @@ public class RequestHandler implements Runnable {
     private void doGetMethod(HTTPRequest request) {
         String uri = request.getUri();
         File cachedFile;
-        if ((cachedFile = Proxy.getCachedFile(uri)) != null) {
+        if ((cachedFile = FileUtils.getCachedFile(uri)) != null) {
             System.out.println("Sending cached file: " + uri);
             sendCachedToClient(cachedFile);
         } else {
@@ -82,17 +83,17 @@ public class RequestHandler implements Runnable {
 
     private void sendCachedToClient(File cachedFile) {
         try {
-            String fileExt = Utils.getFileExt(cachedFile);
-            if (Utils.isImage(fileExt)) {
+            String fileExt = NetUtils.getFileExt(cachedFile);
+            if (NetUtils.isImage(fileExt)) {
                 BufferedImage image = ImageIO.read(cachedFile);
                 if (image == null) {
-                    Utils.sendNotFoundMessageToClient(proxyToClientBw);
+                    NetUtils.sendNotFoundMessageToClient(proxyToClientBw);
                 } else {
                     sendImageToClient(image, fileExt);
                 }
             } else {
                 BufferedReader cachedFileBR = new BufferedReader(new InputStreamReader(new FileInputStream(cachedFile)));
-                Utils.sendOkMessageToClient(proxyToClientBw);
+                NetUtils.sendOkMessageToClient(proxyToClientBw);
                 String line = "";
                 while ((line = cachedFileBR.readLine()) != null) {
                     proxyToClientBw.write(line);
@@ -117,7 +118,7 @@ public class RequestHandler implements Runnable {
 
     private void sendImageToClient(BufferedImage image, String fileExt) {
         try {
-            Utils.sendOkMessageToClient(proxyToClientBw);
+            NetUtils.sendOkMessageToClient(proxyToClientBw);
             ImageIO.write(image, fileExt, clientSocket.getOutputStream());
         } catch (Exception ex) {
             System.out.println("Send image error: " + ex.getMessage());
@@ -127,8 +128,8 @@ public class RequestHandler implements Runnable {
     private void sendNonCachedToClient(HTTPRequest request) {
         String destUrl = request.getUri();
         try {
-            String cachedFileName = Utils.createCachedFileNameFromUrl(destUrl);
-            String fileExt = Utils.getFileExt(destUrl);
+            String cachedFileName = NetUtils.createCachedFileNameFromUrl(destUrl);
+            String fileExt = NetUtils.getFileExt(destUrl);
             boolean caching = true;
             File cacheFile = null;
             BufferedWriter cacheFileBW = null;
@@ -143,27 +144,27 @@ public class RequestHandler implements Runnable {
                 caching = false;
             }
 
-            if (Utils.isImage(fileExt)) {
+            if (NetUtils.isImage(fileExt)) {
                 URL remoteURL = new URL(destUrl);
                 BufferedImage image = ImageIO.read(remoteURL);
                 if (image != null) {
                     ImageIO.write(image, fileExt, cacheFile);
                     sendImageToClient(image, fileExt);
                 } else {
-                    Utils.sendNotFoundMessageToClient(proxyToClientBw);
+                    NetUtils.sendNotFoundMessageToClient(proxyToClientBw);
                     return;
                 }
             } else {
                 BufferedReader proxyToServerBR = null;
                 if (request.getMethod().equalsIgnoreCase("GET")) {
-                    proxyToServerBR = Utils.sendGetToRemoteServer(destUrl);
+                    proxyToServerBR = NetUtils.sendGetToRemoteServer(destUrl);
                 } else {
-                    proxyToServerBR = Utils.sendPostToRemoteServer(request);
+                    proxyToServerBR = NetUtils.sendPostToRemoteServer(request);
                 }
                 if (proxyToServerBR == null ) {
                     return;
                 }
-                Utils.sendOkMessageToClient(proxyToClientBw);
+                NetUtils.sendOkMessageToClient(proxyToClientBw);
                 String line = null;
                 while ((line = proxyToServerBR.readLine()) != null) {
                     proxyToClientBw.write(line);
@@ -181,7 +182,7 @@ public class RequestHandler implements Runnable {
 
             if (caching) {
                 cacheFileBW.flush();
-                Proxy.addCachedFile(destUrl, cacheFile);
+                FileUtils.addCachedFile(destUrl, cacheFile);
                 System.out.println("Cached: " + destUrl);
             }
 

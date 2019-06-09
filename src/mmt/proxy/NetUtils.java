@@ -5,6 +5,7 @@
  */
 package mmt.proxy;
 
+import mmt.proxy.model.HTTPRequest;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -12,21 +13,22 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.Charset;
-import java.util.Arrays;
 import java.util.HashSet;
 
 /**
  *
  * @author nguye
  */
-public class Utils {
+public class NetUtils {
 
     private static HashSet<String> imageTypes;
     private static HashSet<String> unsupportCharracters;
 
-    public Utils() {
+    public NetUtils() {
 
     }
 
@@ -149,6 +151,20 @@ public class Utils {
             proxyToClientBw.close();
         } catch (Exception ex) {
             System.out.println("Error sending blocked site: " + ex.getMessage());
+        }
+    }
+
+    public static boolean netIsAvailable() {
+        try {
+            URL url = new URL("http://www.google.com");
+            URLConnection conn = url.openConnection();
+            conn.connect();
+            conn.getInputStream().close();
+            return true;
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            return false;
         }
     }
 }

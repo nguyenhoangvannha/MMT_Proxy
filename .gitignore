@@ -27,3 +27,4 @@ blacklist.conf
 CACHED_FILE
 /dist/
 /build/
+/nbproject/private/
