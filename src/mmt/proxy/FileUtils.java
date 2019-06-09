@@ -118,9 +118,10 @@ public class FileUtils {
             if (!NetUtils.netIsAvailable()) {
                 return cachedDetails.getFile();
             }
-
             long liveTime = Math.abs(System.currentTimeMillis() - cachedDetails.getAddTime());
             if (liveTime > TTL) {
+                cachedDetails.getFile().delete();
+                cachedSites.remove(url);
                 return null;
             } else {
                 return cachedDetails.getFile();
