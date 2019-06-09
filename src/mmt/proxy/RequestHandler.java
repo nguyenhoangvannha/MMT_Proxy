@@ -5,6 +5,8 @@
  */
 package mmt.proxy;
 
+import mmt.proxy.util.FileUtils;
+import mmt.proxy.util.NetUtils;
 import mmt.proxy.model.HTTPRequest;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;

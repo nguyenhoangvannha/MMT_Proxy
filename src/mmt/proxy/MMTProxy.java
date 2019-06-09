@@ -5,6 +5,9 @@
  */
 package mmt.proxy;
 
+import mmt.proxy.util.FileUtils;
+import mmt.proxy.util.NetUtils;
+
 /**
  *
  * @author nguye

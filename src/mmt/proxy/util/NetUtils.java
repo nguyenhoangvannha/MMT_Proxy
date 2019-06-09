@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package mmt.proxy;
+package mmt.proxy.util;
 
 import mmt.proxy.model.HTTPRequest;
 import java.io.BufferedReader;
